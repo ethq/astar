@@ -32,23 +32,43 @@ function createCube(pos, ext) {
 	cube.position.set = (x, y, z) => {
 		cube.mesh.position.set(x, y, z);
 		cube.outline.position.set(x, y, z);
-		cube.position = [x, y, z];
+		cube.position.val = [x, y, z];
 	};
-	cube.position.get = () => cube.position;
+	cube.position.get = () => cube.position.val;
 	
 	cube.scale = {};
 	cube.scale.set = (x, y, z) => {
 		cube.mesh.scale.set(x, y, z);
 		cube.outline.scale.set(x, y, z);
-		cube.scale = [x, y, z];
+		cube.scale.val = [x, y, z];
 	};
-	cube.scale.get = () => cube.scale;
+	cube.scale.get = () => cube.scale.val;
 	
 	cube.scale.set(...ext);
 	cube.position.set(...pos);
 	
 	return cube;
 }
+
+// Node "class"
+const createNode = (cube) => {
+	let node = {
+		traversable: true,
+		cube: cube,
+		neighbours: [],
+		parent: undefined,
+		// g-cost is the distance from the start node to the current node
+		gCost: 0,
+		// h-cost is the (approximate) distance from the current node to the end node
+		hCost: 0 
+	};
+	node.fCost = () => node.gCost + node.hCost;
+	return node;
+};
+
+// Helpers to manipulate arrays. Does NOT work for b shorter than a
+const addVec = (a, b) => a.map((v, i) => v + b[i]);
+const subVec = (a, b) => a.map((v, i) => v - b[i]);
 
 // Create a grid centered at the origin.
 // Dimensions should contain sizeR, divR, with R = X, Y or Z. 
@@ -63,6 +83,8 @@ const addGrid = (scene, dimensions) => {
 	let wy = dimensions.sizeY / nCubesY;
 	let wz = dimensions.sizeZ / nCubesZ;
 	
+	const ext = [wx, wy, wz];
+	
 	// Calculate center coordinates for each cube
 	const centerAndScaleRange = width => (val, idx, arr) => width*(val - Math.floor(arr.length/2) + 0.5*(1-arr.length%2));
 	
@@ -74,15 +96,114 @@ const addGrid = (scene, dimensions) => {
 	const cubeCoords = cartesian(x, y, z);
 	
 	// Create the cubes themselves
-	const delimiter = 0.0;
-	const ext = [wx, wy, wz].map(e => e - delimiter);
 	let cubes = cubeCoords.map(pos => createCube(pos, ext));
 	
-	// Add to scene
-	cubes.map(cube => scene.add(cube.outline));
-	cubes.map(cube => scene.add(cube.mesh));
+	// Create the grid itself, allowing indexing by position
+	let grid = {};
+	grid.nodes = {};
+	cubes.forEach(cube => grid.nodes[JSON.stringify(cube.position.get())] = createNode(cube));
 	
-	return cubes;
+	// Add neighbours to each grid cell
+	const neighbourPositionsAndSelf = cartesian([-wx, 0, wx], [-wy, 0, wy], [-wz, 0, wz]);
+	
+	// The origin is no neighbour
+	const neighbourPositions = neighbourPositionsAndSelf.filter(nbpos => nbpos.reduce((a,cv) => Math.abs(a) + Math.abs(cv)) > 0);
+	
+	const addNeighbours = (grid, node) => {
+		// Get relative neighbour positions
+		const nodePosition = node.cube.position.get()
+		const nodeNeighbourPositions = neighbourPositions.map(np => addVec(nodePosition, np))
+		
+		// Remove nodes that fall outside the grid
+		const isInside = (x, y, z) => Math.abs(x) <= dimensions.sizeX/2 && Math.abs(y) <= dimensions.sizeY/2 && Math.abs(z) <= dimensions.sizeZ/2;
+		const nodeNeighbourPositionsInside = nodeNeighbourPositions.filter(nbpos => isInside(...nbpos));
+		
+		// Add neighbours to node
+		node.neighbours = nodeNeighbourPositionsInside.map(pos => grid.nodes[JSON.stringify(pos)])
+	};
+	Object.keys(grid.nodes).forEach(nodeKey => addNeighbours(grid, grid.nodes[nodeKey]))
+	
+	// Add to scene
+	cubes.forEach(cube => scene.add(cube.outline));
+	cubes.forEach(cube => scene.add(cube.mesh));
+	
+	// Store grid properties
+	grid.dimensions = dimensions;
+	grid.nodeExt = ext;
+	grid.nCubes = [nCubesX, nCubesY, nCubesZ];
+	
+	return grid;
+};
+
+// Utility functions for the grid
+const selectRandomNode = (grid, condition) => {
+	const keys = Object.keys(grid.nodes);
+	const randomKey = keys[Math.floor(Math.random()*keys.length)]
+	const randomNode = grid.nodes[randomKey];
+	
+	if (condition && !condition(randomNode)) {
+		return selectRandomNode(grid, except);
+	}
+	return randomNode;
+};
+
+// For A* we'd like to calculate distances the same way, no matter the dimensions of the grid
+const makeNodeDistance = dimensions => {
+	// Width of grid cubes in each dimension
+	const widths = [dimensions.sizeX / dimensions.nCubesX,
+					dimensions.sizeY / dimensions.nCubesY,
+					dimensions.sizeZ / dimensions.nCubesZ];
+	
+	return (nodeA, nodeB) => {
+		const posA = nodeA.cube.position.get();
+		const posB = nodeB.cube.position.get();
+		
+		// Distances, with a unit between each adjacent grid cell
+		let dists = subVec(posA, posB).map((v,i) => Math.abs(v)/widths[i]);
+		
+		// Distances on our unit grid, scaled by a factor 10 to avoid decimals
+		const distDiag = 14;
+		const distDirect = 10;
+		
+		// Reduce [x, y] and then [[x,y], z]. This will generate different paths than reducing e.g. [x, z] and then [[x,z], y]. Test!
+		// This type of reduction doesnt give proper diagonal costs for the pure XZ plane, for example....
+		// May want to invent another way of doing this in 3D, since it excludes one dimension and as such can give bad paths
+		// For example, we could calculate 3D-diagonal moves until we're a straight path in one dimension away from the target node.
+		// Probably best!
+		
+		// So, for now, we switch around. Reduce [x,z] => [[x,z], y]
+		const dimA = 0;
+		const dimB = 2;
+		const dimC = 1;
+		
+		const distDiagAB = Math.min(dists[dimA], dists[dimB]);
+		const distDirectAB = Math.abs(dists[dimA] - dists[dimB]);
+		
+		// The diagonal moves are removed from both dimensions
+		dists[dimA] -= distDiagAB;
+		dists[dimB] -= distDiagAB;
+		
+		// The direct moves are removed from the largest dimension
+		if (dists[dimA] > dists[dimB]) {
+			dists[dimA] -= distDirectAB;
+		}
+		else {
+			dists[dimB] -= distDirectAB;
+		}
+		
+		// Array now of the form [0, 5, 14] or [5, 0, 14]
+		const distDiagABC = Math.min(Math.max(dists[dimA], dists[dimB]));
+		const distDirectABC = Math.abs(dists.reduce((a, cv) => a - cv));
+		
+		/*
+		console.log(distDiagXY);
+		console.log(distDirectXY);
+		console.log(distDiagXYZ);
+		console.log(distDirectXYZ);
+		*/
+		
+		return distDiag*(distDiagAB + distDiagABC) + distDirect*(distDirectAB + distDirectABC);
+	};
 };
 
 // Set up scene & renderer
@@ -106,7 +227,7 @@ camera.position.y = 900;
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.update()
 
-// Create scene elements
+// Create the grid
 let dims = {};
 dims.sizeX = 10;
 dims.sizeY = .5;
@@ -114,7 +235,82 @@ dims.sizeZ = 10;
 dims.nCubesX = 10;
 dims.nCubesY = 1;
 dims.nCubesZ = 10;
-let grid = addGrid(scene, dims)
+let grid = addGrid(scene, dims);
+
+
+// Set up A*
+let nodeDistance = makeNodeDistance(dims);
+const startNode = selectRandomNode(grid)
+const endNode = selectRandomNode(grid, n => n != startNode)
+
+startNode.cube.mat.opacity = .3;
+endNode.cube.mat.opacity = 0.6;
+console.log(nodeDistance(startNode, endNode));
+
+// Just color the path blue
+const retracePath = (node) => {
+	let cnode = node.parent;
+	while(cnode.parent) {
+		cnode.cube.mat.color.set(0x0000ff);
+		cnode = cnode.parent;
+	}
+};
+
+const findPath = (startNode, endNode, nodes) => {
+	let openSet = [];
+	let closedSet = [];
+	
+	openSet.push(startNode);
+	
+	while(openSet.length > 0 && astarStep(openSet, closedSet, endNode) != 1) {};
+};
+
+// Modifies openSet and closedSet
+const astarStep = (openSet, closedSet, endNode) => {
+	// Pick the node from the open set with the lowest f cost
+	let currentNode = openSet[0];
+	for (let i = 1; i < openSet.length; i++) {
+		if (openSet[i].fCost < currentNode.fCost || openSet[i].fCost == currentNode.fCost && openSet[i].hCost < currentNode.hCost) {
+			currentNode = openSet[i];
+		}
+	}
+	
+	const currentNodeIdx = openSet.indexOf(currentNode);
+	openSet.splice(currentNodeIdx, 1);
+	closedSet.push(currentNode);
+	currentNode.cube.mat.color.set(0xff0000);
+	
+	if (JSON.stringify(currentNode.cube.position.get()) == JSON.stringify(endNode.cube.position.get())) {
+		retracePath(currentNode);
+		return 1;
+	}
+	
+	// 
+	for(let i = 0; i < currentNode.neighbours.length; i++) {
+		const neighbour = currentNode.neighbours[i];
+		const neighbourPos = JSON.stringify(neighbour.cube.position.get());
+		
+		// No point looking at non-traversable nodes or those we already looked at. We could add a node id to make this less cumbersome.
+		if (!neighbour.traversable || closedSet.find(e => JSON.stringify(e.cube.position.get()) == neighbourPos)) {
+			continue;
+		}
+		
+		const newDistanceToNeighbour = currentNode.gCost + nodeDistance(currentNode, neighbour);
+		if (newDistanceToNeighbour < neighbour.gCost || !openSet.find(e => JSON.stringify(e.cube.position.get()) == neighbourPos)) {
+			neighbour.gCost = newDistanceToNeighbour;
+			neighbour.hCost = nodeDistance(neighbour, endNode);
+			neighbour.parent = currentNode;
+			
+			if (!openSet.find(e => JSON.stringify(e.cube.position.get()) == neighbourPos)) {
+				openSet.push(neighbour);
+			}
+		}
+	}
+}
+
+
+
+findPath(startNode, endNode);
 
 // Hook up input
 let onKeyDown = (e) => {
