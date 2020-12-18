@@ -1,5 +1,5 @@
-import * as THREE from '/node_modules/three/build/three.module.js'
-import { OrbitControls } from '/node_modules/three/examples/jsm/controls/OrbitControls.js'
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r123/three.module.min.js';
+import { OrbitControls } from '/node_modules/three/examples/jsm/controls/OrbitControls.js';
 
 // pos and ext are expected to have x, y and z members
 // pos sets the position of the cube
@@ -111,17 +111,17 @@ const addGrid = (scene, dimensions) => {
 	
 	const addNeighbours = (grid, node) => {
 		// Get relative neighbour positions
-		const nodePosition = node.cube.position.get()
-		const nodeNeighbourPositions = neighbourPositions.map(np => addVec(nodePosition, np))
+		const nodePosition = node.cube.position.get();
+		const nodeNeighbourPositions = neighbourPositions.map(np => addVec(nodePosition, np));
 		
 		// Remove nodes that fall outside the grid
 		const isInside = (x, y, z) => Math.abs(x) <= dimensions.sizeX/2 && Math.abs(y) <= dimensions.sizeY/2 && Math.abs(z) <= dimensions.sizeZ/2;
 		const nodeNeighbourPositionsInside = nodeNeighbourPositions.filter(nbpos => isInside(...nbpos));
 		
 		// Add neighbours to node
-		node.neighbours = nodeNeighbourPositionsInside.map(pos => grid.nodes[JSON.stringify(pos)])
+		node.neighbours = nodeNeighbourPositionsInside.map(pos => grid.nodes[JSON.stringify(pos)]);
 	};
-	Object.keys(grid.nodes).forEach(nodeKey => addNeighbours(grid, grid.nodes[nodeKey]))
+	Object.keys(grid.nodes).forEach(nodeKey => addNeighbours(grid, grid.nodes[nodeKey]));
 	
 	// Add to scene
 	cubes.forEach(cube => scene.add(cube.outline));
@@ -138,11 +138,11 @@ const addGrid = (scene, dimensions) => {
 // Utility functions for the grid
 const selectRandomNode = (grid, condition) => {
 	const keys = Object.keys(grid.nodes);
-	const randomKey = keys[Math.floor(Math.random()*keys.length)]
+	const randomKey = keys[Math.floor(Math.random()*keys.length)];
 	const randomNode = grid.nodes[randomKey];
 	
 	if (condition && !condition(randomNode)) {
-		return selectRandomNode(grid, except);
+		return selectRandomNode(grid, condition);
 	}
 	return randomNode;
 };
@@ -191,67 +191,27 @@ const makeNodeDistance = dimensions => {
 			dists[dimB] -= distDirectAB;
 		}
 		
-		// Array now of the form [0, 5, 14] or [5, 0, 14]
+		// At this point dist = [0, Y, 0]
 		const distDiagABC = Math.min(Math.max(dists[dimA], dists[dimB]));
 		const distDirectABC = Math.abs(dists.reduce((a, cv) => a - cv));
 		
 		/*
-		console.log(distDiagXY);
-		console.log(distDirectXY);
-		console.log(distDiagXYZ);
-		console.log(distDirectXYZ);
+		console.log(distDiagAB);
+		console.log(distDirectAB);
+		console.log(distDiagABC);
+		console.log(distDirectABC);
 		*/
 		
 		return distDiag*(distDiagAB + distDiagABC) + distDirect*(distDirectAB + distDirectABC);
 	};
 };
 
-// Set up scene & renderer
-const scene = new THREE.Scene();
-
-// Axes for debugging
-const axes = new THREE.AxesHelper(5);
-scene.add(axes);
-
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight );
-renderer.setClearColor(0xeeffee, 1);
-
-document.body.appendChild( renderer.domElement );
-
-// Set up camera
-//const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-const camScale = 40;
-const camera = new THREE.OrthographicCamera(window.innerWidth/-camScale, window.innerWidth/camScale, window.innerHeight/camScale, window.innerHeight/-camScale, 1, 1000);
-camera.position.y = 900;
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.update()
-
-// Create the grid
-let dims = {};
-dims.sizeX = 10;
-dims.sizeY = .5;
-dims.sizeZ = 10;
-dims.nCubesX = 10;
-dims.nCubesY = 1;
-dims.nCubesZ = 10;
-let grid = addGrid(scene, dims);
-
-
-// Set up A*
-let nodeDistance = makeNodeDistance(dims);
-const startNode = selectRandomNode(grid)
-const endNode = selectRandomNode(grid, n => n != startNode)
-
-startNode.cube.mat.opacity = .3;
-endNode.cube.mat.opacity = 0.6;
-console.log(nodeDistance(startNode, endNode));
-
 // Just color the path blue
 const retracePath = (node) => {
 	let cnode = node.parent;
 	while(cnode.parent) {
-		cnode.cube.mat.color.set(0x0000ff);
+		cnode.cube.mat.color.set(0x000000);
+		cnode.cube.mat.opacity = 0.4;
 		cnode = cnode.parent;
 	}
 };
@@ -262,11 +222,25 @@ const findPath = (startNode, endNode, nodes) => {
 	
 	openSet.push(startNode);
 	
-	while(openSet.length > 0 && astarStep(openSet, closedSet, endNode) != 1) {};
+	while(openSet.length > 0 && astarStep(openSet, closedSet, endNode) != 1);
+};
+
+const findPathVisualized = (startNode, endNode, nodes) => {
+	let openSet = [];
+	let closedSet = [];
+	
+	openSet.push(startNode);
+	
+	let iid = setInterval(() => {
+		const res = astarStep(openSet, closedSet, endNode, false);
+		if (res == 1) {
+			clearInterval(iid);
+		}
+	}, 10);
 };
 
 // Modifies openSet and closedSet
-const astarStep = (openSet, closedSet, endNode) => {
+const astarStep = (openSet, closedSet, endNode, colorClosed = false) => {
 	// Pick the node from the open set with the lowest f cost
 	let currentNode = openSet[0];
 	for (let i = 1; i < openSet.length; i++) {
@@ -278,7 +252,9 @@ const astarStep = (openSet, closedSet, endNode) => {
 	const currentNodeIdx = openSet.indexOf(currentNode);
 	openSet.splice(currentNodeIdx, 1);
 	closedSet.push(currentNode);
-	currentNode.cube.mat.color.set(0xff0000);
+	if (colorClosed) {
+		currentNode.cube.mat.color.set(0xff0000);
+	}
 	
 	if (JSON.stringify(currentNode.cube.position.get()) == JSON.stringify(endNode.cube.position.get())) {
 		retracePath(currentNode);
@@ -306,34 +282,126 @@ const astarStep = (openSet, closedSet, endNode) => {
 			}
 		}
 	}
+};
+
+function resizeCanvasToDisplaySize(renderer, camera) {
+  const canvas = renderer.domElement;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (canvas.width !== width || canvas.height !== height) {
+    // you must pass false here or three.js sadly fights the browser
+    renderer.setSize(width/2, height/2, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+
+    // set render target sizes here
+  }
 }
 
 
+// Set up scene & renderer
+const scene = new THREE.Scene();
 
-findPath(startNode, endNode);
+// Axes for debugging
+const axes = new THREE.AxesHelper(5);
+scene.add(axes);
+
+const renderer = new THREE.WebGLRenderer({canvas: document.querySelector("canvas")});
+renderer.setSize( window.innerWidth, window.innerHeight );
+renderer.setClearColor(0xeeffee, 1);
+
+//document.getElementById('renderer').appendChild(renderer.domElement);
+
+// Set up camera
+//const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+//camera.position.y = 10;
+const camScale = 40;
+const camera = new THREE.OrthographicCamera(window.innerWidth/-camScale, window.innerWidth/camScale, window.innerHeight/camScale, window.innerHeight/-camScale, 1, 1000);
+camera.position.y = 50;
+
+const controls = new OrbitControls(camera, renderer.domElement);
+
+controls.update();
+
+// Create the grid
+let dims = {};
+dims.sizeX = 20;
+dims.sizeY = 1;
+dims.sizeZ = 20;
+dims.nCubesX = 10;
+dims.nCubesY = 1;
+dims.nCubesZ = 10;
+let grid = addGrid(scene, dims);
+
+// Set up A*
+let nodeDistance = makeNodeDistance(dims);
+const startNode = selectRandomNode(grid);
+const endNode = selectRandomNode(grid, n => n != startNode);
+
+startNode.cube.mat.opacity = 0.3;
+endNode.cube.mat.opacity = 0.6;
+
+//findPath(startNode, endNode);
+
+// Set up picking
+// Note that raycasting against Line or LineSegment requires a smaller raycaster.params.Line.threshold(e.g. 0.1, 1 being default)
+const raycaster = new THREE.Raycaster();
+
+const pick = pos => {
+	raycaster.setFromCamera(pos, camera);
+	return raycaster.intersectObjects(scene.children);
+};
 
 // Hook up input
+
+const onMouseDown = e => {
+	const mousePos = new THREE.Vector2();
+	
+	// Turn coords into NDC before picking
+	mousePos.x = (e.clientX / window.innerWidth)*2 - 1;
+	mousePos.y = -(e.clientY / window.innerHeight)*2 + 1;
+	
+	// Pick
+	const allPickedObjects = pick(mousePos);
+	
+	// We're only interested in the actual nodes/cubes, not the outlines(if present)
+	const pickedObjects = allPickedObjects.map(e => e.object.type == 'Mesh' ? e.object : undefined).filter(e => e);
+	
+	// Extract the positions (which are keys into the grid)
+	const pickedPositions = pickedObjects.map(obj => JSON.stringify([obj.position.x, obj.position.y, obj.position.z]));
+	
+	// Get the nodes
+	const pickedNodes = pickedPositions.map(pos => grid.nodes[pos]);
+	
+	// Do stuff with em depending on options
+	pickedNodes.forEach(node => {
+		node.traversable = false; 
+		node.cube.mat.color.set(0xff0000);
+	});
+	
+};
+
 let onKeyDown = (e) => {
 	const keycode = e.which;
 	if (keycode == '37') {
-		//cube.mat.color.setHex(0xee0000);
-		camera.position.set(0, 10, 0);
+		findPath(startNode, endNode);
 	}
 	else if (keycode == '38') {
 		//grid.mat.color.setHex(0x00ff00);
 	}
-}
+};
 
-document.addEventListener("keydown", onKeyDown, false)
+document.addEventListener("keydown", onKeyDown, false);
+document.addEventListener("pointerdown", onMouseDown, false);
 
 
 // Animation loop
 const animate = function() {
 	requestAnimationFrame( animate );
 	
-	controls.update()
-
-	renderer.render( scene, camera );
+	resizeCanvasToDisplaySize(renderer, camera);
+	controls.update();
+	renderer.render(scene, camera);
 };
 
 animate();
