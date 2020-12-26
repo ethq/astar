@@ -5,6 +5,9 @@
 /.pnp
 .pnp.js
 
+OLD/
+astar-app/node_modules/
+
 # testing
 /coverage
 
