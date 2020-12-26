@@ -9,12 +9,25 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import GRID from './grid.js'
 import findPath from './astar.js'
 
+const CAMERA_TYPE = {
+	NONE: 1,
+	ORTHOGRAPHIC: 2,
+	PERSPECTIVE: 3
+};
+
 class AstarDemo extends React.Component {
 	constructor(props) {
 		super(props);
 		
 		this.onClickInGrid = this.onClickInGrid.bind(this);
 		this.onKeyDown = this.onKeyDown.bind(this);
+		
+		this.state = {autoCalculatePath: true};
+		this.state3d = {
+			showOutlines: true,
+			showRegularNodes: true,
+			cameraIsOrthographic: true,
+		};
 	}
 	// Main rendering effect & THREE scene setup
 	componentDidMount() {		
@@ -33,7 +46,6 @@ class AstarDemo extends React.Component {
 		
 		this.mount.removeChild(this.renderer.domElement);
 		
-		this.controls.dispose();
 		Object.keys(this.grid.nodes).forEach(nodeKey => {
 			let cnode = this.grid.nodes[nodeKey];
 			this.scene.remove(cnode.cube.mesh);
@@ -47,7 +59,7 @@ class AstarDemo extends React.Component {
 	}
 	
 	astarSetup = () => {
-		this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE;
+		this.markNodeAs = GRID.NODE_STATE.START;
 		
 		// Current set of marked nodes
 		this.markedNodes = [];
@@ -89,10 +101,10 @@ class AstarDemo extends React.Component {
 		// Create the grid
 		let dims = {};
 		dims.sizeX = 20;
-		dims.sizeY = 1;
+		dims.sizeY = 10;
 		dims.sizeZ = 20;
 		dims.nCubesX = 10;
-		dims.nCubesY = 1;
+		dims.nCubesY = 10;
 		dims.nCubesZ = 10;
 		this.grid = GRID.create(dims);
 		
@@ -113,26 +125,61 @@ class AstarDemo extends React.Component {
 		this.scene = new THREE.Scene();
 
 		// Axes for debugging
-		const axes = new THREE.AxesHelper(5);
-		this.scene.add(axes);
+		//const axes = new THREE.AxesHelper(5);
+		//this.scene.add(axes);
 
 		this.renderer = new THREE.WebGLRenderer({antialias: true});
 		this.renderer.setSize( width, height );
 		this.renderer.setClearColor(0xeeffee, 1);
 
 		// Set up camera
-		//const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-		//camera.position.y = 10;
-		const camScale = 40;
-		this.camera = new THREE.OrthographicCamera(width/-camScale, width/camScale, height/camScale, height/-camScale, 1, 1000);
-		this.camera.position.y = 50;
-
-		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-		this.controls.update();
+		this.setCamera(CAMERA_TYPE.ORTHOGRAPHIC);
 		
 		this.raycaster = new THREE.Raycaster();
 		
 		this.mount.appendChild(this.renderer.domElement);
+	};
+	
+	setCamera = cameraType => {
+		const camScale = 30;
+		const fov = 75;
+		const width = this.mount.clientWidth;
+		const height = this.mount.clientHeight;
+		
+		this.camera = null;
+		if (this.contorls) {
+			this.controls.dispose();
+		}
+		
+		switch(cameraType) {
+			case CAMERA_TYPE.ORTHOGRAPHIC:
+				this.camera = new THREE.OrthographicCamera(-width/camScale, width/camScale, height/camScale, -height/camScale, 0.5, 1000);
+				this.camera.position.y = 10;
+				break;
+			case CAMERA_TYPE.PERSPECTIVE:
+				this.camera = new THREE.PerspectiveCamera(fov, width / height, 0.1, 1000);
+				this.camera.position.y = 25;
+				break;
+			default:
+				return;
+		}
+		
+		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+		this.controls.update();
+	};
+	
+	setRegularNodeOpacity = opacity => {
+		Object.keys(this.grid.nodes).forEach(key => {
+			const node = this.grid.nodes[key];
+			if (node.currentState === GRID.NODE_STATE.TRAVERSABLE) {
+				node.cube.mat.opacity = Math.min(1, Math.max(0, opacity));
+			}
+		});
+		GRID.TRAVERSABLE_NODE_OPACITY = opacity;
+	};
+	
+	toggleNodeOutlines = showOutlines => {
+		Object.keys(this.grid.nodes).forEach(nodeKey => this.grid.nodes[nodeKey].cube.outline.mat.opacity = (showOutlines ? 1 : 0));
 	};
 	
 	displayErrorMessage = (msg) => {
@@ -260,12 +307,15 @@ class AstarDemo extends React.Component {
 		else if (this.markNodeAs === GRID.NODE_STATE.TRAVERSABLE || 
 				 this.markNodeAs === GRID.NODE_STATE.NON_TRAVERSABLE) {
 			
-			this.markedNodes.forEach(node => GRID.setNodeState(node, this.markNodeAs));
+			const nodesToSet = this.multiConfirm ? this.markedNodes : [this.markedNodes[0]];
+			nodesToSet.forEach(node => GRID.setNodeState(node, this.markNodeAs));
 		}
 		
 		this.markedNodes = [];
 		
-		this.updatePath();
+		if (this.state.autoCalculatePath) {
+			this.updatePath();
+		}
 	}
 	
 	updatePath = () => {		
@@ -303,50 +353,147 @@ class AstarDemo extends React.Component {
 			<div className="container">
 				<div className="grid" ref={ref => (this.mount = ref)} onClick={this.onClickInGrid} />
 				
-				<div className="options">
-					<h6>Mark node as:</h6>
-					<input 
-						type="radio" id="nodeSelect_none" 
-						value="0" 
-						name="nodeSelect" 
-						defaultChecked={true} 
-						onClick={e => {this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE}} 
-					/>
-					<label htmlFor="nodeSelect_none">nothing</label>
-					
-					<input 
-						type="radio" 
-						id="nodeSelect_start" 
-						value="1" name="nodeSelect" 
-						defaultChecked={this.markNodeAs === GRID.NODE_STATE.START} 
-						onClick={e => {this.markNodeAs = GRID.NODE_STATE.START}} 
-					/>
-					<label htmlFor="nodeSelect_start">start</label>
-					
-					<input 
-						type="radio" 
-						id="nodeSelect_end" 
-						value="2" 
-						name="nodeSelect" 
-						defaultChecked={this.markNodeAs === GRID.NODE_STATE.END} 
-						onClick={e => {this.markNodeAs = GRID.NODE_STATE.END}}  
-					/>
-					<label htmlFor="nodeSelect_end">end</label>
-					
-					<input 
-						type="radio" 
-						id="nodeSelect_traversable" 
-						value="3" 
-						name="nodeSelect" 
-						defaultChecked={this.markNodeAs === GRID.NODE_STATE.NON_TRAVERSABLE} 
-						onClick={e => {this.markNodeAs = GRID.NODE_STATE.NON_TRAVERSABLE}}  
-					/>
-					<label htmlFor="nodeSelect_traversable">(non)traversable</label>
-					
-					<input type="checkbox" 
-						onClick={e => this.markWithConfirm = !this.markWithConfirm} 
-					/>
-				</div>
+				<form className="options">
+					<ul>
+						<li>
+							<p>Mark node as</p>
+							<ul>
+								<li>
+									<input 
+										type="radio" id="nodeSelect_none" 
+										value="0" 
+										name="nodeSelect" 
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE}} 
+									/>
+									<label htmlFor="nodeSelect_none">nothing</label>
+								</li>
+								
+								<li>
+									<input 
+										type="radio" 
+										id="nodeSelect_start" 
+										value="1" name="nodeSelect" 
+										defaultChecked={true}
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.START}} 
+									/>
+									<label htmlFor="nodeSelect_start">start</label>
+								</li>
+								
+								<li>
+									<input 
+										type="radio" 
+										id="nodeSelect_end" 
+										value="2" 
+										name="nodeSelect" 
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.END}}  
+									/>
+									<label htmlFor="nodeSelect_end">end</label>
+								</li>
+								
+								<li>
+									<input 
+										type="radio" 
+										id="nodeSelect_traversable" 
+										value="3" 
+										name="nodeSelect" 
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.NON_TRAVERSABLE}}  
+									/>
+									<label htmlFor="nodeSelect_traversable">(non)traversable</label>
+								</li>
+							</ul>
+						</li>
+						<li>
+							<p>Marking options</p>
+							<ul>
+								<li>
+									<input type="checkbox" 
+										id="nodeMark_confirm"
+										onClick={e => this.markWithConfirm = !this.markWithConfirm} 
+									/>
+									<label htmlFor="nodeMark_confirm">Auto-confirm nodes</label>
+								</li>
+								<li>
+									<input type="checkbox"
+										id="nodeMark_multiple"
+										onClick={e => this.multiConfirm = e.target.checked}
+									/>
+									<label htmlFor="nodeMark_multiple">Confirm multiple nodes</label>
+								</li>
+							</ul>
+						</li>
+						<li>
+							<p>Rendering</p>
+							<ul>
+								<li>
+									<input type="checkbox"
+										id="renderOptions_showOutlines"
+										onClick={e => this.toggleNodeOutlines(e.target.checked)}
+										defaultChecked={true}
+									/>
+									<label htmlFor="renderOptions_showOutlines">Show outlines</label>
+								</li>
+								<li>
+									<input type="checkbox"
+										id="renderOptions_hideDefaultNodes"
+									/>
+									<label htmlFor="renderOptions_hideDefaultNodes">Hide regular nodes</label>
+								</li>
+								<li>
+									<input type="radio"
+										id="renderOptions_cameraOrtho"
+										name="renderOptions_camera"
+										defaultChecked={true}
+										onClick={() => this.setCamera(CAMERA_TYPE.ORTHOGRAPHIC)}
+									/>
+									<label htmlFor="renderOptions_cameraOrtho">Orthographic camera</label>
+								</li>
+								<li>
+									<input type="radio"
+										id="renderOptions_cameraPersp"
+										name="renderOptions_camera"
+										onClick={() => this.setCamera(CAMERA_TYPE.PERSPECTIVE)}
+									/>
+									<label htmlFor="renderOptions_cameraPersp">Perspective camera</label>
+								</li>
+								<li>
+									<input type="range"
+										id="renderOptions_regularNodeOpacity"
+										min="0"
+										max="100"
+										defaultValue={100*GRID.TRAVERSABLE_NODE_OPACITY}
+										onChange={e => this.setRegularNodeOpacity(e.target.valueAsNumber/100)}
+									/>
+									<label htmlFor="renderOptions_regularNodeOpacity">Regular node opacity</label>
+								</li>
+							</ul>
+						</li>
+						<li>
+							<p>A*</p>
+							<ul>
+								<li>
+									<input type="checkbox"
+										id="astarOptions_autoRecalculate"
+										checked={this.state.autoCalculatePath}
+										onChange={() => {
+											this.setState(state => ({autoCalculatePath: !state.autoCalculatePath}));
+										}}
+										
+									/>
+									<label htmlFor="renderOptions_showOutlines">Automatically recalculate path</label>
+								</li>
+								<li style={{display: this.state.autoCalculatePath ? "none" : "inline"}}>
+									<button
+										id="astarOptions_calculatePath"
+										type="button"
+										onClick={this.updatePath.bind(this)}
+									>
+									Calculate path
+									</button>
+								</li>
+							</ul>
+						</li>
+					</ul>
+				</form>
 			</div>
 		);
 	}

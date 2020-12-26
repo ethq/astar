@@ -24,6 +24,9 @@ GRID.NODE_STATE = {
 	ON_PATH: 7
 };
 
+// TODO: make the states all modifiable from the outside
+GRID.TRAVERSABLE_NODE_OPACITY = 0.1;
+
 const isMarkedState = state => {
 	return state === GRID.NODE_STATE.MARKED_GROUP || state === GRID.NODE_STATE.MARKED_SINGLE;
 }
@@ -63,7 +66,7 @@ GRID.setNodeState = (node, state) => {
 		case GRID.NODE_STATE.TRAVERSABLE:
 			node.traversable = true;
 			node.cube.mat.color.set(0x00ff00);
-			node.cube.mat.opacity = 0.5;
+			node.cube.mat.opacity = GRID.TRAVERSABLE_NODE_OPACITY;
 			break;
 		default:
 			return GRID.setNodeState(node, GRID.NODE_STATE.TRAVERSABLE);
