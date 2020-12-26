@@ -57,7 +57,7 @@ GRID.setNodeState = (node, state) => {
 			node.cube.mat.opacity = 0.7;
 			break;
 		case GRID.NODE_STATE.ON_PATH:
-			node.cube.mat.color.set(0xff0000);
+			node.cube.mat.color.set(0x000000);
 			node.cube.mat.opacity = 0.9;
 			break;
 		case GRID.NODE_STATE.TRAVERSABLE:
@@ -79,7 +79,7 @@ GRID.setNodeState = (node, state) => {
 };
 
 GRID.resetNodeState = node => {
-	
+	GRID.setNodeState(node, node.previousState || GRID.NODE_STATE.TRAVERSABLE);
 }
 
 GRID.clearPathstate = node => {

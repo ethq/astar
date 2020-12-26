@@ -209,32 +209,49 @@ class AstarDemo extends React.Component {
 	};
 	
 	confirmMarkedNodes() {
+		// Reset previous nodes that conflict with the ones we want to confirm
+		const resetStartNode = () => {
+			GRID.setNodeState(this.startNode);
+			this.startNode = null;
+		};
+		const resetEndNode = () => {
+			GRID.setNodeState(this.endNode);
+			this.endNode = null;
+		};
+		
+		if (!this.markedNodes.length) {
+			return;
+		}
+		
 		// If the confirmed node(s) is a start/end node, reset them
 		const ids = this.multiConfirm ? this.markedNodes.map(node => node.id) : [this.markedNodes[0].id];
-		ids.filter(id => id === this.startNode.id).forEach(n => this.startNode = null);
-		ids.filter(id => id === this.endNode.id).forEach(n => this.endNode = null);
+		
+		if (this.startNode) {
+			ids.filter(id => id === this.startNode.id).forEach(n => resetStartNode());
+		}
+		if (this.endNode) {
+			ids.filter(id => id === this.endNode.id).forEach(n => resetEndNode());
+		}
+		
+		// If not setting multiple nodes, or if setting start/end nodes, reset all others
+		if (!this.multiConfirm || this.markNodeAs === GRID.NODE_STATE.START || this.markNodeAs === GRID.NODE_STATE.END) {
+			this.markedNodes
+				.filter(node => node.id !== this.markedNodes[this.markedIndex].id)
+				.forEach(node => GRID.resetNodeState(node));
+		}
 		
 		// Select start node
 		if (this.markNodeAs === GRID.NODE_STATE.START) {
 			if (this.startNode) {
-				GRID.setNodeState(this.startNode);
-			}
-			// If the end node IS this node, then reset that as well
-			if (this.endNode && this.endNode.id === this.markedNodes[0].id) {
-				this.endNode = null;
+				resetStartNode();
 			}
 			GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.START);
 			this.startNode = this.markedNodes[this.markedIndex];
 		}
 		// Select end node
 		else if (this.markNodeAs === GRID.NODE_STATE.END) {
-			// If an end node is set, reset it
 			if (this.endNode) {
-				GRID.setNodeState(this.endNode);
-			}
-			// If the start node IS this node, then reset that as well
-			if (this.startNode && this.startNode.id === this.markedNodes[0].id) {
-				this.startNode = null;
+				resetEndNode();
 			}
 			GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.END);
 			this.endNode = this.markedNodes[this.markedIndex];
@@ -242,19 +259,6 @@ class AstarDemo extends React.Component {
 		// Default node
 		else if (this.markNodeAs === GRID.NODE_STATE.TRAVERSABLE || 
 				 this.markNodeAs === GRID.NODE_STATE.NON_TRAVERSABLE) {
-			// If start or end nodes are part of the marked node(s), reset them
-			if (this.multiConfirm) {
-				
-			}
-			else {
-				
-			}
-			if (this.startNode && this.markedNodes[this.markedIndex].id === this.startNode.id) {
-				this.startNode = null;
-			}
-			else if (this.endNode && this.markedNodes[this.markedIndex].id === this.endNode.id) {
-				this.endNode = null;
-			}
 			
 			this.markedNodes.forEach(node => GRID.setNodeState(node, this.markNodeAs));
 		}
