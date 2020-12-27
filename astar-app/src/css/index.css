@@ -39,8 +39,8 @@ code {
 	}
 }
 
-#options {
-  background: red;
+.options {
+  border-left: 1px solid black;
 }
 
 .grid {
