@@ -26,6 +26,7 @@ GRID.NODE_STATE = {
 
 // TODO: make the states all modifiable from the outside
 GRID.TRAVERSABLE_NODE_OPACITY = 0.1;
+GRID.OUTLINE_OPACITY = 0.2;
 
 const isMarkedState = state => {
 	return state === GRID.NODE_STATE.MARKED_GROUP || state === GRID.NODE_STATE.MARKED_SINGLE;
@@ -112,7 +113,7 @@ const createCube = (pos, ext) => {
 	cube.outline.geo = new THREE.EdgesGeometry(cube.geo);
 	cube.outline.mat = new THREE.MeshBasicMaterial({color: 0x000000 });
 	cube.outline.mat.depthTest = false;
-	cube.outline.mat.opacity = 1;
+	cube.outline.mat.opacity = GRID.OUTLINE_OPACITY;
 	cube.outline.mat.transparent = true;
 	cube.outline.mesh = new THREE.LineSegments(cube.outline.geo, cube.outline.mat);
 	
@@ -202,6 +203,7 @@ GRID.create = dimensions => {
 	// The origin is no neighbour
 	const neighbourPositions = neighbourPositionsAndSelf.filter(nbpos => nbpos.reduce((a,cv) => Math.abs(a) + Math.abs(cv)) > 0);
 	
+	// TODO: this does not play well when sizex/ncubes arent integer multiples of each other
 	const addNeighbours = (grid, node) => {
 		// Get relative neighbour positions
 		const nodePosition = node.cube.position.get();

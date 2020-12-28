@@ -62,6 +62,8 @@ export default class MinHeap {
 	// Remove & return top node
 	pop = () => {
 		if (this.size() === 0) return null;
+		if (this.size() === 1) return this.items.pop();
+		
 		const topItem = this.items[0];
 		this.items[0] = this.items.pop();
 		this.heapify_down(0);
