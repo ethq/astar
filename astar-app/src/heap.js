@@ -1,95 +1,77 @@
-const createHeap = () => {
-	let heap = {};
-	heap.items = [];
-	heap.currentItemCount = 0;
-	
-	// Heap is specialized for A*, e.g. we assume the items are nodes with .fCost and .hCost members
-	heap.compare = (a, b) => {
-		let diff = a.fCost - b.fCost;
-		if (diff === 0) {
-			diff = a.hCost - b.hCost;
-			if (diff === 0) {
-				return 0;
-			}
-		}
-		
-		return (diff > 0 ? 1 : -1);
+// Comparator takes two elements (a, b) and returns 
+// -1 if a < b
+//  0 if a = b
+//  1 if a > b
+
+export default class MinHeap {
+	constructor(comparator) {
+		this.items = [];
+		this.compare = comparator;
 	}
 	
-	heap.add = item => {
-		item.heapIndex = heap.currentItemCount;
-		heap.items[heap.currentItemCount] = item;
-		heap.sortUp(item);
-		heap.currentItemCount++;
-	};
+	parent = i => Math.floor((i-1)/2);
+	left = i => 2*i + 1;
+	right = i => 2*i + 2;
 	
-	heap.removeFirst = () => {
-		const firstItem = heap.items[0];
-		heap.currentItemCount--;
-		heap.items[0] = heap.items[currentItemCount];
-		heap.items[0].heapIndex = 0;
-		heap.sortDown(heap.items[0]);
+	heapify_down = i => {
+		const left = this.left(i);
+		const right = this.right(i);
 		
-		return firstItem;
-	};
-	
-	heap.updateItem = item => {
-		heap.sortUp(item);
-	};
-	
-	heap.contains = item => {
-		return heap.items[item.heapIndex] === item;
-	};
-	
-	heap.sortUp = item => {
-		let parentIndex = (item.heapIndex-1)/2;
+		let smallest = i;
+		if (left < this.size() && this.compare(this.items[left], this.items[smallest]) < 0) {
+			smallest = left;
+		}
 		
-		while(true) {
-			let parentItem = heap.items[parentIndex];
-			if (heap.compare(item, parentItem) > 0) {
-				heap.swap(item, parentItem);
-			}
-			else {
-				break;
-			}
-			
-			parentIndex = (item.heapIndex-1)/2;
+		if (right < this.size() && this.compare(this.items[right], this.items[smallest]) < 0) {
+			smallest = right;
+		}
+		
+		if (smallest !== i) {
+			this.swap(i, smallest);
+			this.heapify_down(smallest);
 		}
 	};
 	
-	heap.swap = (a, b) => {
-		heap.items[a.heapIndex] = a;
-		heap.items[b.heapIndex] = b;
-		const aIndex = a.heapIndex;
-		a.heapIndex = b.heapIndex;
-		b.heapIndex = aIndex;
-	};
-	
-	heap.sortDown = item => {
-		while(true) {
-			let childLeftIndex = item.heapIndex*2 + 1;
-			let childRightIndex = item.heapIndex*2 + 2;
-			let swapIndex = 0;
-			
-			if (childLeftIndex < heap.currentItemCount) {
-				swapIndex = childLeftIndex;
-				
-				if (childRightIndex < heap.currentItemCount) {
-					if (heap.compare(heap.items[childLeftIndex], heap.items[childRightIndex]) < 0) {
-						swapIndex = childRightIndex;
-					}
-				}
-				
-				if (heap.compare(item, heap.items[swapIndex]) < 0) {
-					heap.swap(item, items[swapIndex]);
-				}
-				else {
-					return;
-				}
-			}
-			else {
-				return;
-			}
+	heapify_up = i => {
+		if (i && this.compare(this.items[this.parent(i)], this.items[i]) > 0) {
+			this.swap(i, this.parent(i));
+			this.heapify_up(this.parent(i))
 		}
 	};
-}
+	
+	// Swaps items at indices (i, j)
+	swap = (i, j) => {
+		let tmp = this.items[i];
+		this.items[i] = this.items[j];
+		this.items[j] = tmp;
+	};
+	
+	find = condition => this.items.find(condition);
+	
+	// Intended public methods
+	size = () => this.items.length;
+	empty = () => this.items.length === 0;
+	
+	// Add item to heap
+	push = item => {
+		this.items.push(item);
+		const lastIndex = this.size() - 1;
+		this.heapify_up(lastIndex);
+	};
+	
+	// Remove & return top node
+	pop = () => {
+		if (this.size() === 0) return null;
+		const topItem = this.items[0];
+		this.items[0] = this.items.pop();
+		this.heapify_down(0);
+		
+		return topItem;
+	};
+	
+	// Get top node
+	top = () => {
+		if (this.size() === 0) return null; // Or throw an error..
+		return this.items[0];
+	};
+};

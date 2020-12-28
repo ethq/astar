@@ -1,4 +1,4 @@
-
+import MinHeap from './heap.js'
 
 // Simple helpers to manipulate arrays. Does NOT work for b shorter than a
 const addVec = (a, b) => a.map((v, i) => v + b[i]);
@@ -68,17 +68,26 @@ const retracePath = (node, apply) => {
 	}
 };
 
+const nodeComparator = (a, b) => {
+	if (a.fCost < b.fCost) return -1;
+	else if (a.fCost > b.fCost) return 1;
+	else if (a.hCost < b.hCost) return -1;
+	else if (a.hCost > b.hCost) return 1;
+	
+	return 0;
+};
+
 const findPath = (startNode, endNode, gridDimensions) => {
 	// TODO cache this
 	const nodeDist = makeNodeDistance(gridDimensions);
 	const step = makeAstarStep(nodeDist);
 	
-	let openSet = [];
+	let openSet = new MinHeap(nodeComparator);
 	let closedSet = [];
 	
 	openSet.push(startNode);
 	
-	while(openSet.length > 0 && step(openSet, closedSet, endNode) !== 1);
+	while(openSet.size() > 0 && step(openSet, closedSet, endNode) !== 1);
 };
 
 const findPathAndVisualize = (startNode, endNode, step) => {
@@ -100,21 +109,13 @@ const findPathAndVisualize = (startNode, endNode, step) => {
 const makeAstarStep = (nodeDistance) => {
 	return (openSet, closedSet, endNode, colorClosed = false) => {
 		// Pick the node from the open set with the lowest f cost
-		let currentNode = openSet[0];
-		for (let i = 1; i < openSet.length; i++) {
-			if ((openSet[i].fCost < currentNode.fCost) || (openSet[i].fCost === currentNode.fCost && openSet[i].hCost < currentNode.hCost)) {
-				currentNode = openSet[i];
-			}
-		}
-		
-		const currentNodeIdx = openSet.indexOf(currentNode);
-		openSet.splice(currentNodeIdx, 1);
+		const currentNode = openSet.pop();
 		closedSet.push(currentNode);
 		if (colorClosed) {
 			currentNode.cube.mat.color.set(0xff0000);
 		}
 		
-		if (JSON.stringify(currentNode.cube.position.get()) === JSON.stringify(endNode.cube.position.get())) {
+		if (currentNode.id === endNode.id) {
 			retracePath(currentNode);
 			return 1;
 		}
@@ -122,20 +123,19 @@ const makeAstarStep = (nodeDistance) => {
 		// 
 		for(let i = 0; i < currentNode.neighbours.length; i++) {
 			const neighbour = currentNode.neighbours[i];
-			const neighbourPos = JSON.stringify(neighbour.cube.position.get());
 			
 			// No point looking at non-traversable nodes or those we already looked at. We could add a node id to make this less cumbersome.
-			if (!neighbour.traversable || closedSet.find(e => JSON.stringify(e.cube.position.get()) === neighbourPos)) {
+			if (!neighbour.traversable || closedSet.find(e => e.id === neighbour.id)) {
 				continue;
 			}
 			
 			const newDistanceToNeighbour = currentNode.gCost + nodeDistance(currentNode, neighbour);
-			if (newDistanceToNeighbour < neighbour.gCost || !openSet.find(e => JSON.stringify(e.cube.position.get()) === neighbourPos)) {
+			if (newDistanceToNeighbour < neighbour.gCost || !openSet.find(e => e.id === neighbour.id)) {
 				neighbour.gCost = newDistanceToNeighbour;
 				neighbour.hCost = nodeDistance(neighbour, endNode);
 				neighbour.parent = currentNode;
 				
-				if (!openSet.find(e => JSON.stringify(e.cube.position.get()) === neighbourPos)) {
+				if (!openSet.find(e => e.id === neighbour.id)) {
 					openSet.push(neighbour);
 				}
 			}

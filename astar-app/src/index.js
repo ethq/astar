@@ -8,6 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 
 import GRID from './grid.js'
 import findPath from './astar.js'
+import createHeap from './heap.js'
 
 const CAMERA_TYPE = {
 	NONE: 1,
@@ -18,9 +19,23 @@ const CAMERA_TYPE = {
 class AstarDemo extends React.Component {
 	constructor(props) {
 		super(props);
+		window.cheap = createHeap;
 		
 		this.onClickInGrid = this.onClickInGrid.bind(this);
 		this.onKeyDown = this.onKeyDown.bind(this);
+		this.renderScene = () => {
+			let pending = false;
+			
+			const render = () => {
+				this.renderer.render(this.scene, this.camera);
+			}
+			
+			if (pending) {
+				return;
+			}
+			pending = false;
+			this.frameId = window.requestAnimationFrame(render);
+		};
 		
 		this.state = {autoCalculatePath: true};
 		this.state3d = {
@@ -34,15 +49,20 @@ class AstarDemo extends React.Component {
 		this.sceneSetup();
 		this.scenePopulate();
 		this.astarSetup();
-		this.animate();
+		this.renderScene();
 		
 		window.addEventListener('resize', this.onResize);
 		window.addEventListener('keydown', this.onKeyDown);
+		this.controls.addEventListener('change', this.renderScene);
 	}
 	
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.onResize);
+		window.removeEventListener('keydown', this.onKeyDown);
 		window.cancelAnimationFrame(this.frameId);
+		
+		this.controls.removeEventListener('change', this.renderScene);
+		this.controls.dispose();
 		
 		this.mount.removeChild(this.renderer.domElement);
 		
@@ -79,9 +99,8 @@ class AstarDemo extends React.Component {
 	};
 	
 	animate = () => {
-		this.controls.update();
-        this.renderer.render(this.scene, this.camera);
-        this.frameId = window.requestAnimationFrame(this.animate); // Why is this accurate without binding here?
+		this.render();
+        this.frameId = window.requestAnimationFrame(this.animate);
     };
 
     onResize = () => {		
@@ -147,7 +166,8 @@ class AstarDemo extends React.Component {
 		const height = this.mount.clientHeight;
 		
 		this.camera = null;
-		if (this.contorls) {
+		if (this.controls) {
+			this.controls.removeEventListener('change', this.renderScene);
 			this.controls.dispose();
 		}
 		
@@ -165,7 +185,8 @@ class AstarDemo extends React.Component {
 		}
 		
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-		this.controls.update();
+		this.controls.addEventListener('change', this.renderScene);
+		this.renderScene();
 	};
 	
 	setRegularNodeOpacity = opacity => {
@@ -200,6 +221,8 @@ class AstarDemo extends React.Component {
 		else if (e.which === keyArrowRight) {
 			this.moveMarked(false);
 		}
+		
+		this.renderScene();
 	}
 	
 	moveMarked = moveLeft => {
@@ -212,6 +235,9 @@ class AstarDemo extends React.Component {
 	}
 	
 	onClickInGrid(e) {
+		if (e.altKey) {
+			return;
+		}
 		// Find the clicked node
 		const mousePos = new THREE.Vector2();
 		
@@ -252,7 +278,9 @@ class AstarDemo extends React.Component {
 			
 		} else {
 			this.confirmMarkedNodes();
-		}		
+		}	
+		
+		this.renderScene();
 	};
 	
 	confirmMarkedNodes() {
@@ -403,7 +431,7 @@ class AstarDemo extends React.Component {
 							</ul>
 						</li>
 						<li>
-							<p>Marking options</p>
+							<p>Marking</p>
 							<ul>
 								<li>
 									<input type="checkbox" 
@@ -427,16 +455,10 @@ class AstarDemo extends React.Component {
 								<li>
 									<input type="checkbox"
 										id="renderOptions_showOutlines"
-										onClick={e => this.toggleNodeOutlines(e.target.checked)}
+										onClick={e => {this.toggleNodeOutlines(e.target.checked); this.renderScene();}}
 										defaultChecked={true}
 									/>
 									<label htmlFor="renderOptions_showOutlines">Show outlines</label>
-								</li>
-								<li>
-									<input type="checkbox"
-										id="renderOptions_hideDefaultNodes"
-									/>
-									<label htmlFor="renderOptions_hideDefaultNodes">Hide regular nodes</label>
 								</li>
 								<li>
 									<input type="radio"
@@ -461,7 +483,7 @@ class AstarDemo extends React.Component {
 										min="0"
 										max="100"
 										defaultValue={100*GRID.TRAVERSABLE_NODE_OPACITY}
-										onChange={e => this.setRegularNodeOpacity(e.target.valueAsNumber/100)}
+										onChange={e => {this.setRegularNodeOpacity(e.target.valueAsNumber/100); this.renderScene();}}
 									/>
 									<label htmlFor="renderOptions_regularNodeOpacity">Regular node opacity</label>
 								</li>
