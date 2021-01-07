@@ -19,23 +19,23 @@ export default class AstarGrid extends React.Component {
 	constructor(props) {
 		super(props);
 		window.cheap = createHeap;
-		
+
 		this.onClickInGrid = this.onClickInGrid.bind(this);
 		this.onKeyDown = this.onKeyDown.bind(this);
 		this.renderScene = () => {
 			let pending = false;
-			
+
 			const render = () => {
 				this.renderer.render(this.scene, this.camera);
 			}
-			
+
 			if (pending) {
 				return;
 			}
 			pending = false;
 			this.frameId = window.requestAnimationFrame(render);
 		};
-		
+
 		this.state = {autoCalculatePath: true};
 		this.state3d = {
 			showOutlines: true,
@@ -44,65 +44,65 @@ export default class AstarGrid extends React.Component {
 		};
 	}
 	// Main rendering effect & THREE scene setup
-	componentDidMount() {		
+	componentDidMount() {
 		this.sceneSetup();
 		this.scenePopulate();
 		this.astarSetup();
 		this.renderScene();
-		
+
 		window.addEventListener('resize', this.onResize);
 		window.addEventListener('keydown', this.onKeyDown);
 		this.controls.addEventListener('change', this.renderScene);
 	}
-	
+
 	componentWillUnmount() {
 		window.removeEventListener('resize', this.onResize);
 		window.removeEventListener('keydown', this.onKeyDown);
 		window.cancelAnimationFrame(this.frameId);
-		
+
 		this.controls.removeEventListener('change', this.renderScene);
 		this.controls.dispose();
-		
+
 		this.mount.removeChild(this.renderer.domElement);
-		
+
 		Object.keys(this.grid.nodes).forEach(nodeKey => {
 			let cnode = this.grid.nodes[nodeKey];
 			this.scene.remove(cnode.cube.mesh);
 			this.scene.remove(cnode.cube.outline);
-			
+
 			cnode.cube.geo.dispose();
 			cnode.cube.mat.dispose();
 			cnode.cube.outline.geo.dispose();
 			cnode.cube.outline.mat.dispose();
 		});
 	}
-	
+
 	astarSetup = () => {
 		this.markNodeAs = GRID.NODE_STATE.START;
-		
+
 		// Current set of marked nodes
 		this.markedNodes = [];
-		
+
 		// Does user need to press a button to confirm node as choice?
 		this.markWithConfirm = true;
-		
+
 		// If multiple nodes are marked, do we confirm every node or just the target in the group
 		this.multiConfirm = false;
-		
+
 		// If multiple nodes are selected, the current index is confirmed if multiConfirm = false
 		this.markedIndex = 0;
-		
+
 		// ?? when pathfinding, start/end/traversable is relevant. So gather these in an aggregate perhaps..
 		this.startNode = null;
 		this.endNode = null;
 	};
-	
+
 	animate = () => {
 		this.render();
         this.frameId = window.requestAnimationFrame(this.animate);
     };
 
-    onResize = () => {		
+    onResize = () => {
         const width = this.mount.clientWidth;
         const height = this.mount.clientHeight;
 
@@ -114,7 +114,7 @@ export default class AstarGrid extends React.Component {
 		// isn't implicit in a setter I don't know.
         this.camera.updateProjectionMatrix();
     };
-	
+
 	scenePopulate = () => {
 		// Create the grid
 		let dims = {};
@@ -125,9 +125,9 @@ export default class AstarGrid extends React.Component {
 		dims.nCubesY = 2;
 		dims.nCubesZ = 20;
 		this.grid = GRID.create(dims);
-		
+
 		window.grid = this.grid;
-		
+
 		// Add to scene
 		const nodeKeys = Object.keys(this.grid.nodes);
 		nodeKeys.forEach(key => {
@@ -135,8 +135,8 @@ export default class AstarGrid extends React.Component {
 			this.scene.add(this.grid.nodes[key].cube.outline.mesh);
 		});
 	};
-	
-	sceneSetup = () => {		
+
+	sceneSetup = () => {
 		let width = this.mount.clientWidth;
 		let height = this.mount.clientHeight;
 		this.frameId = 0;
@@ -154,28 +154,28 @@ export default class AstarGrid extends React.Component {
 
 		// Set up camera
 		this.setCamera(CAMERA_TYPE.ORTHOGRAPHIC);
-		
+
 		this.raycaster = new THREE.Raycaster();
-		
+
 		this.mount.appendChild(this.renderer.domElement);
 	};
-	
+
 	setCamera = cameraType => {
 		const camScale = 30;
 		const fov = 75;
 		const width = this.mount.clientWidth;
 		const height = this.mount.clientHeight;
-		
+
 		this.camera = null;
 		if (this.controls) {
 			this.controls.removeEventListener('change', this.renderScene);
 			this.controls.dispose();
 		}
-		
+
 		switch(cameraType) {
 			case CAMERA_TYPE.ORTHOGRAPHIC:
-				this.camera = new THREE.OrthographicCamera(-width/camScale, width/camScale, height/camScale, -height/camScale, 0.5, 1000);
-				this.camera.position.y = 10;
+				this.camera = new THREE.OrthographicCamera(-width/camScale, width/camScale, height/camScale, -height/camScale, 0.1, 1000);
+				this.camera.position.y = 20;
 				break;
 			case CAMERA_TYPE.PERSPECTIVE:
 				this.camera = new THREE.PerspectiveCamera(fov, width / height, 0.1, 1000);
@@ -184,12 +184,12 @@ export default class AstarGrid extends React.Component {
 			default:
 				return;
 		}
-		
+
 		this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 		this.controls.addEventListener('change', this.renderScene);
 		this.renderScene();
 	};
-	
+
 	setOutlineOpacity = opacity => {
 		Object.keys(this.grid.nodes).forEach(key => {
 			const node = this.grid.nodes[key];
@@ -197,7 +197,7 @@ export default class AstarGrid extends React.Component {
 		});
 		GRID.OUTLINE_OPACITY = opacity;
 	}
-	
+
 	setRegularNodeOpacity = opacity => {
 		Object.keys(this.grid.nodes).forEach(key => {
 			const node = this.grid.nodes[key];
@@ -207,20 +207,16 @@ export default class AstarGrid extends React.Component {
 		});
 		GRID.TRAVERSABLE_NODE_OPACITY = opacity;
 	};
-	
-	toggleNodeOutlines = showOutlines => {
-		Object.keys(this.grid.nodes).forEach(nodeKey => this.grid.nodes[nodeKey].cube.outline.mat.opacity = (showOutlines ? 1 : 0));
-	};
-	
+
 	displayErrorMessage = (msg) => {
 		console.log(msg);
 	};
-	
+
 	onKeyDown = e => {
 		const keyA = 65;
 		const keyArrowLeft = 37;
 		const keyArrowRight = 39;
-		
+
 		if (e.which === keyA) {
 			this.confirmMarkedNodes();
 		}
@@ -230,10 +226,10 @@ export default class AstarGrid extends React.Component {
 		else if (e.which === keyArrowRight) {
 			this.moveMarked(false);
 		}
-		
+
 		this.renderScene();
 	}
-	
+
 	moveMarked = moveLeft => {
 		this.markedIndex = (this.markedIndex + (moveLeft ? -1 : +1)) % this.markedNodes.length;
 		if (this.markedIndex < 0) {
@@ -242,45 +238,47 @@ export default class AstarGrid extends React.Component {
 		this.markedNodes.forEach(node => GRID.setNodeState(node, GRID.NODE_STATE.MARKED_GROUP));
 		GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.MARKED_SINGLE);
 	}
-	
+
 	onClickInGrid(e) {
 		if (e.altKey) {
 			return;
 		}
-		
+
 		// Find the clicked node
 		const mousePos = new THREE.Vector2();
-		
+
+		// Event coordinates are in viewport coordinates, which do not necessarily correspond to three.js' canvas coordinates
+		const offsetY = -(document.getElementById('root').clientHeight - this.mount.clientHeight);
+
 		// Turn coords into NDC before picking
 		mousePos.x = (e.clientX / this.mount.clientWidth)*2 - 1;
-		mousePos.y = -(e.clientY / this.mount.clientHeight)*2 + 1;
-		
+		mousePos.y = -((e.clientY + offsetY) / this.mount.clientHeight)*2 + 1;
+
 		// Pick
 		this.raycaster.setFromCamera(mousePos, this.camera);
 		const allPickedObjects = this.raycaster.intersectObjects(this.scene.children);
-		
+
 		// We're only interested in the actual nodes/cubes, not the outlines(if present)
 		const pickedObjects = allPickedObjects.map(e => e.object.type === 'Mesh' ? e.object : undefined).filter(e => e);
-		
+
 		// Extract the positions (which are keys into the grid)
 		const pickedPositions = pickedObjects.map(obj => JSON.stringify([obj.position.x, obj.position.y, obj.position.z]));
-		
+
 		// Get the nodes
 		const pickedNodes = pickedPositions.map(pos => this.grid.nodes[pos]);
-		
-		// Clear the previously marked nodes 
-		this.markedNodes.forEach(node => GRID.setNodeState(node, node.previousState || GRID.NODE_STATE.TRAVERSABLE));
-		this.markedIndex = 0;
-		
-		this.markedNodes = [];
-		
-		
+
 		if (!pickedNodes.length) {
 			return;
 		}
-		
+
+		// Clear the previously marked nodes
+		this.markedNodes.forEach(node => GRID.setNodeState(node, node.previousState || GRID.NODE_STATE.TRAVERSABLE));
+		this.markedIndex = 0;
+
+		this.markedNodes = [];
+
 		this.markedNodes = pickedNodes;
-		
+
 		// Add the new nodes to marked, or instantly confirm them
 		if (this.markWithConfirm) {
 			// Start showing the nodes as marked
@@ -288,14 +286,14 @@ export default class AstarGrid extends React.Component {
 				GRID.setNodeState(node, GRID.NODE_STATE.MARKED_GROUP);
 			});
 			GRID.setNodeState(pickedNodes[this.markedIndex], GRID.NODE_STATE.MARKED_SINGLE);
-			
+
 		} else {
 			this.confirmMarkedNodes();
-		}	
-		
+		}
+
 		this.renderScene();
 	};
-	
+
 	confirmMarkedNodes() {
 		// Reset previous nodes that conflict with the ones we want to confirm
 		const resetStartNode = () => {
@@ -306,28 +304,28 @@ export default class AstarGrid extends React.Component {
 			GRID.setNodeState(this.endNode);
 			this.endNode = null;
 		};
-		
-		if (!this.markedNodes.length) {
+
+		if (this.markedNodes.length === 0) {
 			return;
 		}
-		
+
 		// If the confirmed node(s) is a start/end node, reset them
 		const ids = this.multiConfirm ? this.markedNodes.map(node => node.id) : [this.markedNodes[0].id];
-		
+
 		if (this.startNode) {
 			ids.filter(id => id === this.startNode.id).forEach(n => resetStartNode());
 		}
 		if (this.endNode) {
 			ids.filter(id => id === this.endNode.id).forEach(n => resetEndNode());
 		}
-		
+
 		// If not setting multiple nodes, or if setting start/end nodes, reset all others
 		if (!this.multiConfirm || this.markNodeAs === GRID.NODE_STATE.START || this.markNodeAs === GRID.NODE_STATE.END) {
 			this.markedNodes
 				.filter(node => node.id !== this.markedNodes[this.markedIndex].id)
 				.forEach(node => GRID.resetNodeState(node));
 		}
-		
+
 		// Select start node
 		if (this.markNodeAs === GRID.NODE_STATE.START) {
 			if (this.startNode) {
@@ -345,21 +343,21 @@ export default class AstarGrid extends React.Component {
 			this.endNode = this.markedNodes[this.markedIndex];
 		}
 		// Default node
-		else if (this.markNodeAs === GRID.NODE_STATE.TRAVERSABLE || 
+		else if (this.markNodeAs === GRID.NODE_STATE.TRAVERSABLE ||
 				 this.markNodeAs === GRID.NODE_STATE.NON_TRAVERSABLE) {
-			
+
 			const nodesToSet = this.multiConfirm ? this.markedNodes : [this.markedNodes[0]];
 			nodesToSet.forEach(node => GRID.setNodeState(node, this.markNodeAs));
 		}
-		
+
 		this.markedNodes = [];
-		
+
 		if (this.state.autoCalculatePath) {
 			this.updatePath();
 		}
 	}
-	
-	updatePath = () => {		
+
+	updatePath = () => {
 		// Clear fcosts / parents / path visuals
 		Object.keys(this.grid.nodes).forEach(key => {
 			const node = this.grid.nodes[key];
@@ -368,76 +366,76 @@ export default class AstarGrid extends React.Component {
 			}
 			GRID.clearPathstate(node);
 		});
-		
+
 		// Do not recalculate path if we miss start/end nodes
 		if (!this.startNode || !this.endNode || (this.startNode.id === this.endNode.id)) {
 			return;
 		}
-		
+
 		findPath(this.startNode, this.endNode, this.grid.dimensions);
-		
+
 		// endNode can be traced back, now
 		let cnode = this.endNode.parent;
 		if (!cnode) {
 			return;
 		}
-		
+
 		while(cnode.parent) {
 			GRID.setNodeState(cnode, GRID.NODE_STATE.ON_PATH);
 			cnode = cnode.parent;
 		}
 	};
-	
-	
+
+
 	render() {
 		return (
 			<div className="container">
 				<div className="grid" ref={ref => (this.mount = ref)} onClick={this.onClickInGrid} />
-				
+
 				<form className="options">
 					<ul>
 						<li>
 							<p>Mark node as</p>
 							<ul>
 								<li>
-									<input 
-										type="radio" id="nodeSelect_none" 
-										value="0" 
-										name="nodeSelect" 
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE}} 
+									<input
+										type="radio" id="nodeSelect_none"
+										value="0"
+										name="nodeSelect"
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE}}
 									/>
 									<label htmlFor="nodeSelect_none">nothing</label>
 								</li>
-								
+
 								<li>
-									<input 
-										type="radio" 
-										id="nodeSelect_start" 
-										value="1" name="nodeSelect" 
+									<input
+										type="radio"
+										id="nodeSelect_start"
+										value="1" name="nodeSelect"
 										defaultChecked={true}
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.START}} 
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.START}}
 									/>
 									<label htmlFor="nodeSelect_start">start</label>
 								</li>
-								
+
 								<li>
-									<input 
-										type="radio" 
-										id="nodeSelect_end" 
-										value="2" 
-										name="nodeSelect" 
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.END}}  
+									<input
+										type="radio"
+										id="nodeSelect_end"
+										value="2"
+										name="nodeSelect"
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.END}}
 									/>
 									<label htmlFor="nodeSelect_end">end</label>
 								</li>
-								
+
 								<li>
-									<input 
-										type="radio" 
-										id="nodeSelect_traversable" 
-										value="3" 
-										name="nodeSelect" 
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.NON_TRAVERSABLE}}  
+									<input
+										type="radio"
+										id="nodeSelect_traversable"
+										value="3"
+										name="nodeSelect"
+										onClick={e => {this.markNodeAs = GRID.NODE_STATE.NON_TRAVERSABLE}}
 									/>
 									<label htmlFor="nodeSelect_traversable">(non)traversable</label>
 								</li>
@@ -447,9 +445,9 @@ export default class AstarGrid extends React.Component {
 							<p>Marking</p>
 							<ul>
 								<li>
-									<input type="checkbox" 
+									<input type="checkbox"
 										id="nodeMark_confirm"
-										onClick={e => this.markWithConfirm = !this.markWithConfirm} 
+										onClick={e => this.markWithConfirm = !this.markWithConfirm}
 									/>
 									<label htmlFor="nodeMark_confirm">Auto-confirm nodes</label>
 								</li>
@@ -466,19 +464,11 @@ export default class AstarGrid extends React.Component {
 							<p>Rendering</p>
 							<ul>
 								<li>
-									<input type="checkbox"
-										id="renderOptions_showOutlines"
-										onClick={e => {this.toggleNodeOutlines(e.target.checked); this.renderScene();}}
-										defaultChecked={true}
-									/>
-									<label htmlFor="renderOptions_showOutlines">Show outlines</label>
-								</li>
-								<li>
 									<input type="range"
 										id="renderOptions_outlineOpacity"
 										min="0"
 										max="100"
-										onClick={e => {this.setOutlineOpacity(e.target.valueAsNumber/100); this.renderScene();}}
+										onChange={e => {this.setOutlineOpacity(e.target.valueAsNumber/100); this.renderScene();}}
 										defaultValue={100*GRID.OUTLINE_OPACITY}
 									/>
 									<label htmlFor="renderOptions_outlineOpacity">Outline opacity</label>
@@ -522,7 +512,7 @@ export default class AstarGrid extends React.Component {
 										onChange={() => {
 											this.setState(state => ({autoCalculatePath: !state.autoCalculatePath}));
 										}}
-										
+
 									/>
 									<label htmlFor="renderOptions_showOutlines">Automatically recalculate path</label>
 								</li>

@@ -4,7 +4,7 @@ import AstarGrid from './components/AstarGrid.component.js'
 
 // Just adds a header
 class App extends React.Component {
-	
+
 	render() {
 		return (
 			<>
