@@ -1,5 +1,8 @@
-# astar
+## astar
 Implementation of A* in 3D, visualized in a voxel-like terrain rendered with three.js
+
+## setup
+- clone, npm install and npm start in the astar-app folder.
 
 ## usage
 - Click on nodes with your mouse to mark them. 
