@@ -538,6 +538,7 @@ export default class AstarGrid extends React.Component {
 								<li>
 									<label htmlFor="gridOptions_numCubesX">Cubes in X </label>
 									<input type="number" min="1" max="1000" id="gridOptions_numCubesX"
+										defaultValue={this.state.gridDimensions.nCubesX}
 										onChange={e => {
 											this.setState((prevState, props) => ({
 												gridDimensions: {
@@ -552,6 +553,7 @@ export default class AstarGrid extends React.Component {
 								<li>
 									<label htmlFor="gridOptions_numCubesY">Cubes in Y </label>
 									<input type="number" min="1" max="1000" id="gridOptions_numCubesY"
+										defaultValue={this.state.gridDimensions.nCubesY}
 										onChange={e => {
 											this.setState((prevState, props) => ({
 												gridDimensions: {
@@ -566,6 +568,7 @@ export default class AstarGrid extends React.Component {
 								<li>
 									<label htmlFor="gridOptions_numCubesZ">Cubes in Z </label>
 									<input type="number" min="1" max="1000" id="gridOptions_numCubesZ"
+										defaultValue={this.state.gridDimensions.nCubesZ}
 										onChange={e => {
 											this.setState((prevState, props) => ({
 												gridDimensions: {
