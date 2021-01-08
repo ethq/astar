@@ -18,7 +18,6 @@ const CAMERA_TYPE = {
 export default class AstarGrid extends React.Component {
 	constructor(props) {
 		super(props);
-		window.cheap = createHeap;
 
 		this.onClickInGrid = this.onClickInGrid.bind(this);
 		this.onKeyDown = this.onKeyDown.bind(this);
@@ -36,18 +35,21 @@ export default class AstarGrid extends React.Component {
 			this.frameId = window.requestAnimationFrame(render);
 		};
 
-		this.state = {autoCalculatePath: true};
-		this.state3d = {
-			showOutlines: true,
-			showRegularNodes: true,
-			cameraIsOrthographic: true,
+		this.state = {
+			autoCalculatePath: true,
+			controlsEnabled: true,
+			gridDimensions: {
+				nCubesX: 20,
+				nCubesY: 2,
+				nCubesZ: 20
+			}
 		};
 	}
 	// Main rendering effect & THREE scene setup
 	componentDidMount() {
 		this.sceneSetup();
-		this.scenePopulate();
-		this.astarSetup();
+		this.addGrid();
+		this.astarInit();
 		this.renderScene();
 
 		window.addEventListener('resize', this.onResize);
@@ -63,21 +65,11 @@ export default class AstarGrid extends React.Component {
 		this.controls.removeEventListener('change', this.renderScene);
 		this.controls.dispose();
 
+		this.removeGrid();
 		this.mount.removeChild(this.renderer.domElement);
-
-		Object.keys(this.grid.nodes).forEach(nodeKey => {
-			let cnode = this.grid.nodes[nodeKey];
-			this.scene.remove(cnode.cube.mesh);
-			this.scene.remove(cnode.cube.outline);
-
-			cnode.cube.geo.dispose();
-			cnode.cube.mat.dispose();
-			cnode.cube.outline.geo.dispose();
-			cnode.cube.outline.mat.dispose();
-		});
 	}
 
-	astarSetup = () => {
+	astarInit = () => {
 		this.markNodeAs = GRID.NODE_PATH_STATE.START;
 
 		// Current set of marked nodes
@@ -115,18 +107,15 @@ export default class AstarGrid extends React.Component {
         this.camera.updateProjectionMatrix();
     };
 
-	scenePopulate = () => {
-		// Create the grid
+	addGrid = () => {
 		let dims = {};
-		dims.sizeX = 20;
-		dims.sizeY = 2;
-		dims.sizeZ = 20;
-		dims.nCubesX = 20;
-		dims.nCubesY = 2;
-		dims.nCubesZ = 20;
+		dims.sizeX = this.state.gridDimensions.nCubesX;
+		dims.sizeY = this.state.gridDimensions.nCubesY;
+		dims.sizeZ = this.state.gridDimensions.nCubesZ;
+		dims.nCubesX = this.state.gridDimensions.nCubesX;
+		dims.nCubesY = this.state.gridDimensions.nCubesY;
+		dims.nCubesZ = this.state.gridDimensions.nCubesZ;
 		this.grid = GRID.create(dims);
-
-		window.grid = this.grid;
 
 		// Add to scene
 		const nodeKeys = Object.keys(this.grid.nodes);
@@ -134,6 +123,25 @@ export default class AstarGrid extends React.Component {
 			this.scene.add(this.grid.nodes[key].cube.mesh);
 			this.scene.add(this.grid.nodes[key].cube.outline.mesh);
 		});
+	};
+
+	removeGrid = () => {
+		// Resets start/end nodes etc.
+		this.astarInit();
+
+		// Remove nodes from scene
+		Object.keys(this.grid.nodes).forEach(nodeKey => {
+			let cnode = this.grid.nodes[nodeKey];
+			this.scene.remove(cnode.cube.mesh);
+			this.scene.remove(cnode.cube.outline.mesh);
+
+			cnode.cube.geo.dispose();
+			cnode.cube.mat.dispose();
+			cnode.cube.outline.geo.dispose();
+			cnode.cube.outline.mat.dispose();
+		});
+
+		this.renderScene();
 	};
 
 	sceneSetup = () => {
@@ -216,6 +224,7 @@ export default class AstarGrid extends React.Component {
 		const keyA = 65;
 		const keyArrowLeft = 37;
 		const keyArrowRight = 39;
+		const enterKey = 13;
 
 		if (e.which === keyA) {
 			this.confirmMarkedNodes();
@@ -225,6 +234,11 @@ export default class AstarGrid extends React.Component {
 		}
 		else if (e.which === keyArrowRight) {
 			this.moveMarked(false);
+		}
+		else if (e.which === enterKey) {
+			// Only place in app where enter is pressed is in the options menu,
+			// we lose all options on re-render, so... stop submission
+			e.preventDefault();
 		}
 
 		this.renderScene();
@@ -505,7 +519,7 @@ export default class AstarGrid extends React.Component {
 										}}
 
 									/>
-									<label htmlFor="renderOptions_showOutlines">Automatically recalculate path</label>
+									<label htmlFor="renderOptions_autoRecalculate">Automatically recalculate path</label>
 								</li>
 								<li style={{display: this.state.autoCalculatePath ? "none" : "inline"}}>
 									<button
@@ -514,6 +528,64 @@ export default class AstarGrid extends React.Component {
 										onClick={this.updatePath.bind(this)}
 									>
 									Calculate path
+									</button>
+								</li>
+							</ul>
+						</li>
+						<li>
+							<p>Grid</p>
+							<ul>
+								<li>
+									<label htmlFor="gridOptions_numCubesX">Cubes in X </label>
+									<input type="number" min="1" max="1000" id="gridOptions_numCubesX"
+										onChange={e => {
+											this.setState((prevState, props) => ({
+												gridDimensions: {
+													nCubesX: parseInt(e.target.value, 10),
+													nCubesY: prevState.gridDimensions.nCubesY,
+													nCubesZ: prevState.gridDimensions.nCubesZ
+												}
+											}))
+										}}
+									/>
+								</li>
+								<li>
+									<label htmlFor="gridOptions_numCubesY">Cubes in Y </label>
+									<input type="number" min="1" max="1000" id="gridOptions_numCubesY"
+										onChange={e => {
+											this.setState((prevState, props) => ({
+												gridDimensions: {
+													nCubesX: prevState.gridDimensions.nCubesX,
+													nCubesY: parseInt(e.target.value, 10),
+													nCubesZ: prevState.gridDimensions.nCubesZ
+												}
+											}))
+										}}
+									/>
+								</li>
+								<li>
+									<label htmlFor="gridOptions_numCubesZ">Cubes in Z </label>
+									<input type="number" min="1" max="1000" id="gridOptions_numCubesZ"
+										onChange={e => {
+											this.setState((prevState, props) => ({
+												gridDimensions: {
+													nCubesX: prevState.gridDimensions.nCubesX,
+													nCubesY: prevState.gridDimensions.nCubesY,
+													nCubesZ: parseInt(e.target.value, 10)
+												}
+											}))
+										}}
+									/>
+								</li>
+								<li>
+									<button type="button"
+											id="gridOptions_update"
+											onClick={() => {
+												this.removeGrid();
+												this.addGrid();
+											}}
+									>
+									Update grid
 									</button>
 								</li>
 							</ul>

@@ -9,6 +9,17 @@ html {
   box-sizing: inherit;
 }
 
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    /* display: none; <- Crashes Chrome on hover */
+    -webkit-appearance: none;
+    margin: 0; /* <-- Apparently some margin are still there even though it's hidden */
+}
+
+input[type=number] {
+    -moz-appearance:textfield; /* Firefox */
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -17,7 +28,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
+
   height: 100%;
 }
 
@@ -39,7 +50,7 @@ code {
 	#header {
 		height: 5vh;
 	}
-	
+
 	.container {
 		display: grid;
 		grid-template-columns: 80% 20%;
@@ -61,7 +72,7 @@ code {
 	margin: 0 0;
 	font-weight: 500;
 	font-variant: small-caps;
-	
+
 }
 
 .options {
