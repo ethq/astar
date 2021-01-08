@@ -78,7 +78,7 @@ export default class AstarGrid extends React.Component {
 	}
 
 	astarSetup = () => {
-		this.markNodeAs = GRID.NODE_STATE.START;
+		this.markNodeAs = GRID.NODE_PATH_STATE.START;
 
 		// Current set of marked nodes
 		this.markedNodes = [];
@@ -201,7 +201,7 @@ export default class AstarGrid extends React.Component {
 	setRegularNodeOpacity = opacity => {
 		Object.keys(this.grid.nodes).forEach(key => {
 			const node = this.grid.nodes[key];
-			if (node.currentState === GRID.NODE_STATE.TRAVERSABLE) {
+			if (node.state === GRID.NODE_PATH_STATE.TRAVERSABLE) {
 				node.cube.mat.opacity = Math.min(1, Math.max(0, opacity));
 			}
 		});
@@ -235,8 +235,8 @@ export default class AstarGrid extends React.Component {
 		if (this.markedIndex < 0) {
 			this.markedIndex += this.markedNodes.length;
 		}
-		this.markedNodes.forEach(node => GRID.setNodeState(node, GRID.NODE_STATE.MARKED_GROUP));
-		GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.MARKED_SINGLE);
+		this.markedNodes.forEach(node => GRID.setNodeVisualState(node, GRID.NODE_VISUAL_STATE.MARKED_GROUP));
+		GRID.setNodeVisualState(this.markedNodes[this.markedIndex], GRID.NODE_VISUAL_STATE.MARKED_SINGLE);
 	}
 
 	onClickInGrid(e) {
@@ -267,25 +267,23 @@ export default class AstarGrid extends React.Component {
 		// Get the nodes
 		const pickedNodes = pickedPositions.map(pos => this.grid.nodes[pos]);
 
-		if (!pickedNodes.length) {
+		if (pickedNodes.length === 0) {
 			return;
 		}
 
 		// Clear the previously marked nodes
-		this.markedNodes.forEach(node => GRID.setNodeState(node, node.previousState || GRID.NODE_STATE.TRAVERSABLE));
+		this.markedNodes.forEach(node => GRID.resetNodeVisualState(node));
 		this.markedIndex = 0;
-
 		this.markedNodes = [];
-
 		this.markedNodes = pickedNodes;
 
 		// Add the new nodes to marked, or instantly confirm them
 		if (this.markWithConfirm) {
 			// Start showing the nodes as marked
 			pickedNodes.forEach(node => {
-				GRID.setNodeState(node, GRID.NODE_STATE.MARKED_GROUP);
+				GRID.setNodeVisualState(node, GRID.NODE_VISUAL_STATE.MARKED_GROUP);
 			});
-			GRID.setNodeState(pickedNodes[this.markedIndex], GRID.NODE_STATE.MARKED_SINGLE);
+			GRID.setNodeVisualState(pickedNodes[this.markedIndex], GRID.NODE_VISUAL_STATE.MARKED_SINGLE);
 
 		} else {
 			this.confirmMarkedNodes();
@@ -297,11 +295,11 @@ export default class AstarGrid extends React.Component {
 	confirmMarkedNodes() {
 		// Reset previous nodes that conflict with the ones we want to confirm
 		const resetStartNode = () => {
-			GRID.setNodeState(this.startNode);
+			GRID.setNodePathState(this.startNode, GRID.NODE_PATH_STATE.TRAVERSABLE);
 			this.startNode = null;
 		};
 		const resetEndNode = () => {
-			GRID.setNodeState(this.endNode);
+			GRID.setNodePathState(this.endNode, GRID.NODE_PATH_STATE.TRAVERSABLE);
 			this.endNode = null;
 		};
 
@@ -311,7 +309,6 @@ export default class AstarGrid extends React.Component {
 
 		// If the confirmed node(s) is a start/end node, reset them
 		const ids = this.multiConfirm ? this.markedNodes.map(node => node.id) : [this.markedNodes[0].id];
-
 		if (this.startNode) {
 			ids.filter(id => id === this.startNode.id).forEach(n => resetStartNode());
 		}
@@ -319,37 +316,31 @@ export default class AstarGrid extends React.Component {
 			ids.filter(id => id === this.endNode.id).forEach(n => resetEndNode());
 		}
 
-		// If not setting multiple nodes, or if setting start/end nodes, reset all others
-		if (!this.multiConfirm || this.markNodeAs === GRID.NODE_STATE.START || this.markNodeAs === GRID.NODE_STATE.END) {
-			this.markedNodes
-				.filter(node => node.id !== this.markedNodes[this.markedIndex].id)
-				.forEach(node => GRID.resetNodeState(node));
-		}
-
 		// Select start node
-		if (this.markNodeAs === GRID.NODE_STATE.START) {
+		if (this.markNodeAs === GRID.NODE_PATH_STATE.START) {
 			if (this.startNode) {
 				resetStartNode();
 			}
-			GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.START);
+			GRID.setNodePathState(this.markedNodes[this.markedIndex], GRID.NODE_PATH_STATE.START);
 			this.startNode = this.markedNodes[this.markedIndex];
 		}
 		// Select end node
-		else if (this.markNodeAs === GRID.NODE_STATE.END) {
+		else if (this.markNodeAs === GRID.NODE_PATH_STATE.END) {
 			if (this.endNode) {
 				resetEndNode();
 			}
-			GRID.setNodeState(this.markedNodes[this.markedIndex], GRID.NODE_STATE.END);
+			GRID.setNodePathState(this.markedNodes[this.markedIndex], GRID.NODE_PATH_STATE.END);
 			this.endNode = this.markedNodes[this.markedIndex];
 		}
 		// Default node
-		else if (this.markNodeAs === GRID.NODE_STATE.TRAVERSABLE ||
-				 this.markNodeAs === GRID.NODE_STATE.NON_TRAVERSABLE) {
+		else if (this.markNodeAs === GRID.NODE_PATH_STATE.TRAVERSABLE ||
+				 this.markNodeAs === GRID.NODE_PATH_STATE.NON_TRAVERSABLE) {
 
 			const nodesToSet = this.multiConfirm ? this.markedNodes : [this.markedNodes[0]];
-			nodesToSet.forEach(node => GRID.setNodeState(node, this.markNodeAs));
+			nodesToSet.forEach(node => GRID.setNodePathState(node, this.markNodeAs));
 		}
 
+		this.markedNodes.forEach(node => GRID.resetNodeVisualState(node));
 		this.markedNodes = [];
 
 		if (this.state.autoCalculatePath) {
@@ -361,13 +352,13 @@ export default class AstarGrid extends React.Component {
 		// Clear fcosts / parents / path visuals
 		Object.keys(this.grid.nodes).forEach(key => {
 			const node = this.grid.nodes[key];
-			if (node.currentState === GRID.NODE_STATE.ON_PATH) {
-				GRID.setNodeState(node, node.previousState || GRID.NODE_STATE.TRAVERSABLE);
+			if (node.state === GRID.NODE_PATH_STATE.ON_PATH) {
+				GRID.setNodePathState(node, GRID.NODE_PATH_STATE.TRAVERSABLE);
 			}
 			GRID.clearPathstate(node);
 		});
 
-		// Do not recalculate path if we miss start/end nodes
+		// Do not recalculate path if we are missing start/end nodes
 		if (!this.startNode || !this.endNode || (this.startNode.id === this.endNode.id)) {
 			return;
 		}
@@ -381,7 +372,7 @@ export default class AstarGrid extends React.Component {
 		}
 
 		while(cnode.parent) {
-			GRID.setNodeState(cnode, GRID.NODE_STATE.ON_PATH);
+			GRID.setNodePathState(cnode, GRID.NODE_PATH_STATE.ON_PATH);
 			cnode = cnode.parent;
 		}
 	};
@@ -402,7 +393,7 @@ export default class AstarGrid extends React.Component {
 										type="radio" id="nodeSelect_none"
 										value="0"
 										name="nodeSelect"
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.TRAVERSABLE}}
+										onClick={e => {this.markNodeAs = GRID.NODE_PATH_STATE.TRAVERSABLE}}
 									/>
 									<label htmlFor="nodeSelect_none">nothing</label>
 								</li>
@@ -413,7 +404,7 @@ export default class AstarGrid extends React.Component {
 										id="nodeSelect_start"
 										value="1" name="nodeSelect"
 										defaultChecked={true}
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.START}}
+										onClick={e => {this.markNodeAs = GRID.NODE_PATH_STATE.START}}
 									/>
 									<label htmlFor="nodeSelect_start">start</label>
 								</li>
@@ -424,7 +415,7 @@ export default class AstarGrid extends React.Component {
 										id="nodeSelect_end"
 										value="2"
 										name="nodeSelect"
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.END}}
+										onClick={e => {this.markNodeAs = GRID.NODE_PATH_STATE.END}}
 									/>
 									<label htmlFor="nodeSelect_end">end</label>
 								</li>
@@ -435,7 +426,7 @@ export default class AstarGrid extends React.Component {
 										id="nodeSelect_traversable"
 										value="3"
 										name="nodeSelect"
-										onClick={e => {this.markNodeAs = GRID.NODE_STATE.NON_TRAVERSABLE}}
+										onClick={e => {this.markNodeAs = GRID.NODE_PATH_STATE.NON_TRAVERSABLE}}
 									/>
 									<label htmlFor="nodeSelect_traversable">(non)traversable</label>
 								</li>
